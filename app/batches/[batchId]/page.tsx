@@ -52,6 +52,10 @@ function normalizeDraftPacket(packet: PermitPacket) {
   };
 }
 
+function withDraftOrder(packets: PermitPacket[], batchId: string) {
+  return packets.map((packet, idx) => ({ ...packet, batchId, sortOrder: idx }));
+}
+
 export default function BatchDetailPage() {
   const { batchId } = useParams<{ batchId: string }>();
   const store = usePermitStore();
@@ -79,8 +83,19 @@ export default function BatchDetailPage() {
 }
 
 function BatchEditor({ batch, packets, store }: { batch: PermitBatch; packets: PermitPacket[]; store: ReturnType<typeof usePermitStore> }) {
-  const [packetDrafts, setPacketDrafts] = useState<PermitPacket[]>(packets.map(normalizeDraftPacket));
+  const initialPacketDrafts = () => withDraftOrder(packets.map(normalizeDraftPacket), batch.id);
+  const [packetDrafts, setPacketDrafts] = useState<PermitPacket[]>(initialPacketDrafts);
   const tbodyRef = useRef<HTMLTableSectionElement>(null);
+  const packetDraftsRef = useRef(packetDrafts);
+
+  const updatePacketDrafts = (updater: (current: PermitPacket[]) => PermitPacket[]) => {
+    setPacketDrafts((current) => {
+      const ordered = withDraftOrder(updater(current), batch.id);
+      packetDraftsRef.current = ordered;
+      return ordered;
+    });
+  };
+
   // If the store loaded asynchronously after this component mounted, packetDrafts will be
   // empty even though packets from the server are now available. Sync once, the first time
   // packets arrive, but never overwrite user edits after that.
@@ -88,9 +103,11 @@ function BatchEditor({ batch, packets, store }: { batch: PermitBatch; packets: P
   useEffect(() => {
     if (!packetsSynced.current && packets.length > 0) {
       packetsSynced.current = true;
-      setPacketDrafts(packets.map(normalizeDraftPacket));
+      const ordered = withDraftOrder(packets.map(normalizeDraftPacket), batch.id);
+      packetDraftsRef.current = ordered;
+      setPacketDrafts(ordered);
     }
-  }, [packets]);
+  }, [batch.id, packets]);
   const [batchDate, setBatchDate] = useState(batch.batchDate);
   const [checkNumber, setCheckNumber] = useState(batch.checkNumber);
   const [saving, setSaving] = useState(false);
@@ -101,10 +118,10 @@ function BatchEditor({ batch, packets, store }: { batch: PermitBatch; packets: P
   const [confirmDialog, setConfirmDialog] = useState<{ title: string; body: string; onConfirm: () => void } | null>(null);
   const historical = isHistoricalBatch(batch);
 
-  const persist = async (nextPackets: PermitPacket[]) => {
+  const persist = async () => {
     setSaving(true);
     const now = new Date().toISOString();
-    const filteredPackets = nextPackets
+    const filteredPackets = packetDraftsRef.current
       .filter((packet) => packet.stockNumber.trim() || packet.customerName.trim())
       .map((packet, idx) => ({ ...packet, batchId: batch.id, sortOrder: idx, updatedAt: now }));
     const updatedBatch = { ...batch, batchDate, checkNumber, updatedAt: now };
@@ -120,6 +137,7 @@ function BatchEditor({ batch, packets, store }: { batch: PermitBatch; packets: P
     try {
       setSaveError(null);
       await saveStore(nextStore, { reconcilePacketBatchIds: [batch.id] });
+      packetDraftsRef.current = filteredPackets;
       setPacketDrafts(filteredPackets);
       setDirty(false);
       setLastSaved(new Date());
@@ -139,19 +157,14 @@ function BatchEditor({ batch, packets, store }: { batch: PermitBatch; packets: P
   }, [dirty]);
 
   const updatePacketDraft = (packetId: string, patch: Partial<PermitPacket>) => {
-    setPacketDrafts((prev) => prev.map((packet) => (packet.id === packetId ? { ...packet, ...patch } : packet)));
+    updatePacketDrafts((prev) => prev.map((packet) => (packet.id === packetId ? { ...packet, ...patch } : packet)));
     setDirty(true);
   };
 
   const addPacketRow = () => {
-    setPacketDrafts((prev) => [...prev, createBlankPacket(batch.id)]);
+    updatePacketDrafts((prev) => [...prev, createBlankPacket(batch.id)]);
     setDirty(true);
   };
-
-  const packetDraftsRef = useRef(packetDrafts);
-  useEffect(() => {
-    packetDraftsRef.current = packetDrafts;
-  }, [packetDrafts]);
 
   const handleGridKeyDown = useCallback((e: React.KeyboardEvent<HTMLTableSectionElement>) => {
     if (e.key !== 'Enter') return;
@@ -177,7 +190,7 @@ function BatchEditor({ batch, packets, store }: { batch: PermitBatch; packets: P
     } else if (!e.shiftKey && nextRowIdx === totalRows) {
       // At the last row pressing Enter: add a new row, then focus its first field
       const newPacket = createBlankPacket(batch.id);
-      setPacketDrafts((prev) => [...prev, newPacket]);
+      updatePacketDrafts((prev) => [...prev, newPacket]);
       setDirty(true);
       // Focus happens after React re-renders — use a brief rAF wait
       requestAnimationFrame(() => {
@@ -186,14 +199,14 @@ function BatchEditor({ batch, packets, store }: { batch: PermitBatch; packets: P
         next?.focus();
       });
     }
-  }, [batch.id]);
+  }, [batch.id, updatePacketDrafts]);
 
   const deletePacketRow = (packetId: string) => {
     setConfirmDialog({
       title: 'Delete this packet?',
       body: 'This row will be removed. The change won\'t be permanent until you click Save Changes.',
       onConfirm: () => {
-        setPacketDrafts((prev) => prev.filter((p) => p.id !== packetId));
+        updatePacketDrafts((prev) => prev.filter((p) => p.id !== packetId));
         setDirty(true);
         setConfirmDialog(null);
       },
@@ -201,7 +214,7 @@ function BatchEditor({ batch, packets, store }: { batch: PermitBatch; packets: P
   };
 
   const movePacketRow = (index: number, direction: 'up' | 'down') => {
-    setPacketDrafts((prev) => {
+    updatePacketDrafts((prev) => {
       const next = [...prev];
       const swapIdx = direction === 'up' ? index - 1 : index + 1;
       if (swapIdx < 0 || swapIdx >= next.length) return prev;
@@ -241,7 +254,9 @@ function BatchEditor({ batch, packets, store }: { batch: PermitBatch; packets: P
       title: 'Discard changes?',
       body: 'All unsaved changes to this batch will be lost.',
       onConfirm: () => {
-        setPacketDrafts(packets.map(normalizeDraftPacket));
+        const ordered = withDraftOrder(packets.map(normalizeDraftPacket), batch.id);
+        packetDraftsRef.current = ordered;
+        setPacketDrafts(ordered);
         setBatchDate(batch.batchDate);
         setCheckNumber(batch.checkNumber);
         setDirty(false);
@@ -316,7 +331,7 @@ function BatchEditor({ batch, packets, store }: { batch: PermitBatch; packets: P
           dirty={dirty}
           saving={saving}
           lastSaved={lastSaved}
-          onSave={() => void persist(packetDrafts)}
+          onSave={() => void persist()}
           onDiscard={discardChanges}
         />
         {saveError && (
