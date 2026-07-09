@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { loadStore, usePermitStore } from '@/lib/store';
 import { formatDateForPrint, formatMoneyForPrint } from '@/lib/date';
 
@@ -19,8 +19,17 @@ function getPacketPacketYear(batch?: { batchDate?: string | null } | null, packe
 export default function PrintBatchPage() {
   const { batchId } = useParams<{ batchId: string }>();
   const store = usePermitStore();
+  const [ready, setReady] = useState(false);
   useEffect(() => {
-    loadStore().catch(() => void 0);
+    let active = true;
+    loadStore()
+      .catch(() => void 0)
+      .finally(() => {
+        if (active) setReady(true);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
   const batch = useMemo(() => store.batches.find((item) => item.id === batchId), [store, batchId]);
   const packets = useMemo(
@@ -36,6 +45,7 @@ export default function PrintBatchPage() {
     document.title = printTitle;
   }, [printTitle]);
 
+  if (!ready) return <div className="p-6">Loading print view...</div>;
   if (!batch) return <div className="p-6">Batch not found.</div>;
   return <div className="p-6 print:p-0 print:text-[10px]">
     <div className="print-only mb-3 text-center text-xl font-semibold">{printTitle}</div>
