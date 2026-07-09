@@ -48,13 +48,7 @@ export default function PrintBatchPage() {
   if (!ready) return <div className="p-6">Loading print view...</div>;
   if (!batch) return <div className="p-6">Batch not found.</div>;
   return <div className="p-6 print:p-0 print:text-[10px]">
-    <div className="print-only mb-3 flex items-end justify-between gap-4">
-      <div className="text-center text-xl font-semibold">{printTitle}</div>
-      <div className="min-w-[180px] rounded border-2 border-black px-4 py-2 text-center">
-        <div className="text-[10px] font-semibold uppercase tracking-[0.18em]">Total</div>
-        <div className="mt-1 border-t border-black pt-2 text-base font-semibold">&nbsp;</div>
-      </div>
-    </div>
+    <div className="print-only mb-3 text-center text-xl font-semibold">{printTitle}</div>
     <div className="mb-4 text-sm no-print"><a href={`/batches/${batch.id}`} className="underline">Back to batch</a></div>
     <table className="w-full table-fixed border-collapse text-[11px] print:text-[10px]">
       <colgroup>
@@ -70,6 +64,16 @@ export default function PrintBatchPage() {
         <tr>
           <th colSpan={7} className="border border-black p-2 text-left text-sm print:text-[11px]">
             {printTitle} | Date: {batch.batchDate} | Check #: {batch.checkNumber || '—'} | Status: {batch.status}
+          </th>
+        </tr>
+        <tr>
+          <th colSpan={7} className="border border-black p-2">
+            <div className="flex justify-end">
+              <div className="w-[220px] rounded border-2 border-black px-4 py-2 text-center">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.18em]">Total</div>
+                <div className="mt-1 border-t border-black pt-2 text-base font-semibold">&nbsp;</div>
+              </div>
+            </div>
           </th>
         </tr>
         <tr className="border border-black">
