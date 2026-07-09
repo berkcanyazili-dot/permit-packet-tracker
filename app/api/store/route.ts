@@ -220,7 +220,11 @@ export async function PUT(req: Request) {
     created_at: batch.createdAt,
     updated_at: batch.updatedAt,
   }));
-  const packets = uniqueById(body.packets).map(({ id, batchId, stockNumber, customerName, dateSold, registrationCost, collectedAmount, owedAmount, notes, status, sortOrder, createdAt, updatedAt }) => ({
+  const packetOrderByBatch = new Map<string, number>();
+  const packets = uniqueById(body.packets).map(({ id, batchId, stockNumber, customerName, dateSold, registrationCost, collectedAmount, owedAmount, notes, status, createdAt, updatedAt }) => {
+    const sortOrder = packetOrderByBatch.get(batchId) ?? 0;
+    packetOrderByBatch.set(batchId, sortOrder + 1);
+    return {
     id,
     batch_id: batchId,
     source_file_name: body.packets.find((item) => item.id === id)?.sourceFileName || '',
@@ -235,10 +239,11 @@ export async function PUT(req: Request) {
     owed_amount: owedAmount,
     notes,
     status,
-    sort_order: sortOrder ?? null,
+    sort_order: sortOrder,
     created_at: createdAt,
     updated_at: updatedAt,
-  }));
+    };
+  });
 
   const batchIds = body.batches.map((item) => item.id);
   const packetIds = body.packets.map((item) => item.id);
