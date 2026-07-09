@@ -1,0 +1,84 @@
+'use client';
+
+import { useParams } from 'next/navigation';
+import { useEffect, useMemo } from 'react';
+import { loadStore, usePermitStore } from '@/lib/store';
+import { formatDateForPrint, formatMoneyForPrint } from '@/lib/date';
+
+function getPacketPacketYear(batch?: { batchDate?: string | null } | null, packets: Array<{ dateSold?: string | null }> = []) {
+  const batchYear = batch?.batchDate ? new Date(batch.batchDate).getFullYear() : NaN;
+  if (Number.isFinite(batchYear)) return batchYear;
+  for (const packet of packets) {
+    if (!packet.dateSold) continue;
+    const packetYear = new Date(packet.dateSold).getFullYear();
+    if (Number.isFinite(packetYear)) return packetYear;
+  }
+  return new Date().getFullYear();
+}
+
+export default function PrintBatchPage() {
+  const { batchId } = useParams<{ batchId: string }>();
+  const store = usePermitStore();
+  useEffect(() => {
+    loadStore().catch(() => void 0);
+  }, []);
+  const batch = useMemo(() => store.batches.find((item) => item.id === batchId), [store, batchId]);
+  const packets = useMemo(
+    () => store.packets
+      .filter((packet) => packet.batchId === batchId)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+    [store, batchId],
+  );
+  const printYear = getPacketPacketYear(batch, packets);
+  const printTitle = `Caskinette Ford - Registration Packet ${printYear}`;
+
+  useEffect(() => {
+    document.title = printTitle;
+  }, [printTitle]);
+
+  if (!batch) return <div className="p-6">Batch not found.</div>;
+  return <div className="p-6 print:p-0 print:text-[10px]">
+    <div className="print-only mb-3 text-center text-xl font-semibold">{printTitle}</div>
+    <div className="mb-4 text-sm no-print"><a href={`/batches/${batch.id}`} className="underline">Back to batch</a></div>
+    <table className="w-full table-fixed border-collapse text-[11px] print:text-[10px]">
+      <colgroup>
+        <col className="w-[12%]" />
+        <col className="w-[23%]" />
+        <col className="w-[12%]" />
+        <col className="w-[11%]" />
+        <col className="w-[11%]" />
+        <col className="w-[11%]" />
+        <col className="w-[20%]" />
+      </colgroup>
+      <thead>
+        <tr>
+          <th colSpan={7} className="border border-black p-2 text-left text-sm print:text-[11px]">
+            {printTitle} | Date: {batch.batchDate} | Check #: {batch.checkNumber || '—'} | Status: {batch.status}
+          </th>
+        </tr>
+        <tr className="border border-black">
+          <th className="border border-black p-2">Stock #</th>
+          <th className="border border-black p-2">Customer Name</th>
+          <th className="border border-black p-2">Date Sold</th>
+          <th className="border border-black p-2">Reg. Cost</th>
+          <th className="border border-black p-2">Collected</th>
+          <th className="border border-black p-2">Owed</th>
+          <th className="border border-black p-2">Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {packets.map((packet) => (
+          <tr key={packet.id} className="break-inside-avoid">
+            <td className="border border-black p-2 align-top">{packet.stockNumber || ' '}</td>
+            <td className="border border-black p-2 align-top">{packet.customerName || ' '}</td>
+            <td className="border border-black p-2 align-top">{formatDateForPrint(packet.dateSold, batch.batchDate)}</td>
+            <td className="border border-black p-2 align-top">{formatMoneyForPrint(packet.registrationCost)}</td>
+            <td className="border border-black p-2 align-top">{formatMoneyForPrint(packet.collectedAmount)}</td>
+            <td className="border border-black p-2 align-top">{formatMoneyForPrint(packet.owedAmount)}</td>
+            <td className="border border-black p-2 align-top">{packet.notes || ' '}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>;
+}
