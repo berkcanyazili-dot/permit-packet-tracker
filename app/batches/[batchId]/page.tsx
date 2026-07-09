@@ -120,7 +120,7 @@ function BatchEditor({ batch, packets, store }: { batch: PermitBatch; packets: P
     try {
       setSaveError(null);
       await saveStore(nextStore, { reconcilePacketBatchIds: [batch.id] });
-      await loadStore().catch(() => void 0);
+      setPacketDrafts(filteredPackets);
       setDirty(false);
       setLastSaved(new Date());
       recordActivity({ label: 'Batch saved', detail: `${batchDate} · ${checkNumber || 'No check #'}` });
@@ -149,7 +149,9 @@ function BatchEditor({ batch, packets, store }: { batch: PermitBatch; packets: P
   };
 
   const packetDraftsRef = useRef(packetDrafts);
-  packetDraftsRef.current = packetDrafts;
+  useEffect(() => {
+    packetDraftsRef.current = packetDrafts;
+  }, [packetDrafts]);
 
   const handleGridKeyDown = useCallback((e: React.KeyboardEvent<HTMLTableSectionElement>) => {
     if (e.key !== 'Enter') return;
