@@ -118,10 +118,37 @@ function BatchEditor({ batch, packets, store }: { batch: PermitBatch; packets: P
   const [confirmDialog, setConfirmDialog] = useState<{ title: string; body: string; onConfirm: () => void } | null>(null);
   const historical = isHistoricalBatch(batch);
 
+  const readVisibleDrafts = () => {
+    const rows = Array.from(tbodyRef.current?.querySelectorAll<HTMLTableRowElement>('tr[data-packet-id]') ?? []);
+    const draftsById = new Map(packetDraftsRef.current.map((packet) => [packet.id, packet]));
+    if (!rows.length) return packetDraftsRef.current;
+
+    return rows.flatMap((row, sortOrder) => {
+      const packet = draftsById.get(row.dataset.packetId || '');
+      if (!packet) return [];
+      const read = (field: string) => row.querySelector<HTMLInputElement>(`input[data-field="${field}"]`)?.value ?? '';
+      const numberOrNull = (field: string) => {
+        const value = read(field);
+        return value === '' ? null : Number(value);
+      };
+      return [{
+        ...packet,
+        stockNumber: read('stockNumber'),
+        customerName: read('customerName'),
+        dateSold: read('dateSold'),
+        registrationCost: numberOrNull('registrationCost'),
+        collectedAmount: numberOrNull('collectedAmount'),
+        owedAmount: numberOrNull('owedAmount'),
+        notes: read('notes'),
+        sortOrder,
+      }];
+    });
+  };
+
   const persist = async () => {
     setSaving(true);
     const now = new Date().toISOString();
-    const filteredPackets = packetDraftsRef.current
+    const filteredPackets = readVisibleDrafts()
       .filter((packet) => packet.stockNumber.trim() || packet.customerName.trim())
       .map((packet, idx) => ({ ...packet, batchId: batch.id, sortOrder: idx, updatedAt: now }));
     const updatedBatch = { ...batch, batchDate, checkNumber, updatedAt: now };
@@ -381,7 +408,7 @@ function BatchEditor({ batch, packets, store }: { batch: PermitBatch; packets: P
             </thead>
             <tbody ref={tbodyRef} onKeyDown={handleGridKeyDown}>
               {packetDrafts.map((packet, idx) => (
-                <tr key={packet.id} className="border-t border-[var(--border)]">
+                <tr key={packet.id} data-packet-id={packet.id} className="border-t border-[var(--border)]">
                   <td className="px-2 py-3 align-top">
                     <div className="flex flex-col gap-1">
                       <button type="button" onClick={() => movePacketRow(idx, 'up')} disabled={saving || idx === 0} aria-label="Move row up" className="inline-flex items-center rounded-lg border border-slate-200 bg-white p-1.5 text-slate-400 shadow-sm hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-30 active:bg-slate-100">
@@ -397,13 +424,13 @@ function BatchEditor({ batch, packets, store }: { batch: PermitBatch; packets: P
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </td>
-                  <td className="px-4 py-3 align-top"><input data-row={idx} data-field="stockNumber" aria-label="Stock number" disabled={saving} value={packet.stockNumber} onChange={(e) => updatePacketDraft(packet.id, { stockNumber: e.target.value })} placeholder="e.g. 12345" className="w-full rounded-xl border border-[var(--border)] bg-white px-3 py-2 disabled:bg-slate-50 disabled:text-slate-500" /></td>
-                  <td className="px-4 py-3 align-top"><input data-row={idx} data-field="customerName" aria-label="Customer name" disabled={saving} value={packet.customerName} onChange={(e) => updatePacketDraft(packet.id, { customerName: e.target.value })} placeholder="Full name" className="w-full rounded-xl border border-[var(--border)] bg-white px-3 py-2 disabled:bg-slate-50 disabled:text-slate-500" /></td>
-                  <td className="px-4 py-3 align-top"><input data-row={idx} data-field="dateSold" type="date" aria-label="Date sold" disabled={saving} value={toDateInputValue(packet.dateSold, batch.batchDate)} onChange={(e) => updatePacketDraft(packet.id, { dateSold: e.target.value })} className="w-full rounded-xl border border-[var(--border)] bg-white px-3 py-2 disabled:bg-slate-50 disabled:text-slate-500" /></td>
-                  <td className="px-4 py-3 align-top"><input data-row={idx} data-field="registrationCost" type="number" step="0.01" aria-label="Registration cost" disabled={saving} value={packet.registrationCost ?? ''} onChange={(e) => updatePacketDraft(packet.id, { registrationCost: e.target.value === '' ? null : Number(e.target.value) })} className="w-full rounded-xl border border-[var(--border)] bg-white px-3 py-2 disabled:bg-slate-50 disabled:text-slate-500" placeholder="0.00" /></td>
-                  <td className="px-4 py-3 align-top"><input data-row={idx} data-field="collectedAmount" type="number" step="0.01" aria-label="Collected amount" disabled={saving} value={packet.collectedAmount ?? ''} onChange={(e) => updatePacketDraft(packet.id, { collectedAmount: e.target.value === '' ? null : Number(e.target.value) })} className="w-full rounded-xl border border-[var(--border)] bg-white px-3 py-2 disabled:bg-slate-50 disabled:text-slate-500" placeholder="0.00" /></td>
-                  <td className="px-4 py-3 align-top"><input data-row={idx} data-field="owedAmount" type="number" step="0.01" aria-label="Amount owed" disabled={saving} value={packet.owedAmount ?? ''} onChange={(e) => updatePacketDraft(packet.id, { owedAmount: e.target.value === '' ? null : Number(e.target.value) })} className="w-full rounded-xl border border-[var(--border)] bg-white px-3 py-2 disabled:bg-slate-50 disabled:text-slate-500" placeholder="0.00" /></td>
-                  <td className="px-4 py-3 align-top"><input data-row={idx} data-field="notes" aria-label="Notes" disabled={saving} value={packet.notes} onChange={(e) => updatePacketDraft(packet.id, { notes: e.target.value })} className="w-full rounded-xl border border-[var(--border)] bg-white px-3 py-2 disabled:bg-slate-50 disabled:text-slate-500" placeholder="Optional notes" /></td>
+                  <td className="px-4 py-3 align-top"><input data-row={idx} data-packet-id={packet.id} data-field="stockNumber" aria-label="Stock number" disabled={saving} value={packet.stockNumber} onChange={(e) => updatePacketDraft(packet.id, { stockNumber: e.target.value })} placeholder="e.g. 12345" className="w-full rounded-xl border border-[var(--border)] bg-white px-3 py-2 disabled:bg-slate-50 disabled:text-slate-500" /></td>
+                  <td className="px-4 py-3 align-top"><input data-row={idx} data-packet-id={packet.id} data-field="customerName" aria-label="Customer name" disabled={saving} value={packet.customerName} onChange={(e) => updatePacketDraft(packet.id, { customerName: e.target.value })} placeholder="Full name" className="w-full rounded-xl border border-[var(--border)] bg-white px-3 py-2 disabled:bg-slate-50 disabled:text-slate-500" /></td>
+                  <td className="px-4 py-3 align-top"><input data-row={idx} data-packet-id={packet.id} data-field="dateSold" type="date" aria-label="Date sold" disabled={saving} value={toDateInputValue(packet.dateSold, batch.batchDate)} onChange={(e) => updatePacketDraft(packet.id, { dateSold: e.target.value })} className="w-full rounded-xl border border-[var(--border)] bg-white px-3 py-2 disabled:bg-slate-50 disabled:text-slate-500" /></td>
+                  <td className="px-4 py-3 align-top"><input data-row={idx} data-packet-id={packet.id} data-field="registrationCost" type="number" step="0.01" aria-label="Registration cost" disabled={saving} value={packet.registrationCost ?? ''} onChange={(e) => updatePacketDraft(packet.id, { registrationCost: e.target.value === '' ? null : Number(e.target.value) })} className="w-full rounded-xl border border-[var(--border)] bg-white px-3 py-2 disabled:bg-slate-50 disabled:text-slate-500" placeholder="0.00" /></td>
+                  <td className="px-4 py-3 align-top"><input data-row={idx} data-packet-id={packet.id} data-field="collectedAmount" type="number" step="0.01" aria-label="Collected amount" disabled={saving} value={packet.collectedAmount ?? ''} onChange={(e) => updatePacketDraft(packet.id, { collectedAmount: e.target.value === '' ? null : Number(e.target.value) })} className="w-full rounded-xl border border-[var(--border)] bg-white px-3 py-2 disabled:bg-slate-50 disabled:text-slate-500" placeholder="0.00" /></td>
+                  <td className="px-4 py-3 align-top"><input data-row={idx} data-packet-id={packet.id} data-field="owedAmount" type="number" step="0.01" aria-label="Amount owed" disabled={saving} value={packet.owedAmount ?? ''} onChange={(e) => updatePacketDraft(packet.id, { owedAmount: e.target.value === '' ? null : Number(e.target.value) })} className="w-full rounded-xl border border-[var(--border)] bg-white px-3 py-2 disabled:bg-slate-50 disabled:text-slate-500" placeholder="0.00" /></td>
+                  <td className="px-4 py-3 align-top"><input data-row={idx} data-packet-id={packet.id} data-field="notes" aria-label="Notes" disabled={saving} value={packet.notes} onChange={(e) => updatePacketDraft(packet.id, { notes: e.target.value })} className="w-full rounded-xl border border-[var(--border)] bg-white px-3 py-2 disabled:bg-slate-50 disabled:text-slate-500" placeholder="Optional notes" /></td>
                 </tr>
               ))}
             </tbody>
