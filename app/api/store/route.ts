@@ -111,6 +111,15 @@ function mapPacket(row: PermitPacketRow, historical = false): PermitPacket {
   };
 }
 
+function sortPacketsForDisplay(a: PermitPacket, b: PermitPacket) {
+  if (a.batchId !== b.batchId) return a.batchId.localeCompare(b.batchId);
+  const aSort = a.sortOrder ?? Number.POSITIVE_INFINITY;
+  const bSort = b.sortOrder ?? Number.POSITIVE_INFINITY;
+  if (aSort !== bSort) return aSort - bSort;
+  if (a.createdAt !== b.createdAt) return a.createdAt.localeCompare(b.createdAt);
+  return a.id.localeCompare(b.id);
+}
+
 function batchSourceSheetName(batch: PermitBatch) {
   if (batch.sourceSheetName) return batch.sourceSheetName;
   if (batch.sourceFileName || batch.importedAt || batch.importRunId || batch.status === 'Historical') return '';
@@ -175,7 +184,7 @@ export async function GET() {
     const batchHistorical = batchHistoricalById.get(row.batch_id) ?? false;
     const historical = isHistoricalPacketRow(row, batchHistorical);
     return mapPacket(row, historical);
-  });
+  }).sort(sortPacketsForDisplay);
 
   return NextResponse.json({
     store: {
