@@ -89,19 +89,12 @@ export default function PrintBatchPage() {
           </tr>
         ))}
       </tbody>
-      <tfoot>
-        <tr>
-          <td colSpan={3} className="border border-black p-2">&nbsp;</td>
-          <td colSpan={4} className="border border-black p-2">
-            <div className="flex justify-end">
-              <div className="w-[220px] rounded border-2 border-black px-4 py-2 text-center">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.18em]">Total</div>
-                <div className="mt-1 border-t border-black pt-2 text-base font-semibold">&nbsp;</div>
-              </div>
-            </div>
-          </td>
-        </tr>
-      </tfoot>
     </table>
+    <div className="packet-footer mt-3 print:mt-3">
+      <div className="total-box">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.18em]">Total</div>
+        <div className="mt-2 border-t border-black pt-2 text-base font-semibold">&nbsp;</div>
+      </div>
+    </div>
   </div>;
 }
