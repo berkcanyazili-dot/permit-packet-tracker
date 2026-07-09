@@ -88,13 +88,13 @@ function BatchEditor({ batch, packets, store }: { batch: PermitBatch; packets: P
   const tbodyRef = useRef<HTMLTableSectionElement>(null);
   const packetDraftsRef = useRef(packetDrafts);
 
-  const updatePacketDrafts = (updater: (current: PermitPacket[]) => PermitPacket[]) => {
+  const updatePacketDrafts = useCallback((updater: (current: PermitPacket[]) => PermitPacket[]) => {
     setPacketDrafts((current) => {
       const ordered = withDraftOrder(updater(current), batch.id);
       packetDraftsRef.current = ordered;
       return ordered;
     });
-  };
+  }, [batch.id]);
 
   // If the store loaded asynchronously after this component mounted, packetDrafts will be
   // empty even though packets from the server are now available. Sync once, the first time
