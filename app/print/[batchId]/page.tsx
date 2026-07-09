@@ -1,8 +1,8 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
-import { loadStore, usePermitStore } from '@/lib/store';
+import { useEffect, useState } from 'react';
+import { getStore, loadStore } from '@/lib/store';
 import { formatDateForPrint, formatMoneyForPrint } from '@/lib/date';
 
 function getPacketPacketYear(batch?: { batchDate?: string | null } | null, packets: Array<{ dateSold?: string | null }> = []) {
@@ -18,11 +18,34 @@ function getPacketPacketYear(batch?: { batchDate?: string | null } | null, packe
 
 export default function PrintBatchPage() {
   const { batchId } = useParams<{ batchId: string }>();
-  const store = usePermitStore();
   const [ready, setReady] = useState(false);
+  const [snapshot, setSnapshot] = useState<{
+    batch: { id: string; batchDate?: string | null; checkNumber?: string | null; status: string; sheetName?: string | null } | null;
+    packets: Array<{
+      id: string;
+      batchId: string;
+      stockNumber?: string | null;
+      customerName?: string | null;
+      dateSold?: string | null;
+      registrationCost?: number | null;
+      collectedAmount?: number | null;
+      owedAmount?: number | null;
+      notes?: string | null;
+      createdAt: string;
+    }>;
+  } | null>(null);
   useEffect(() => {
     let active = true;
     loadStore()
+      .then(() => {
+        if (!active) return;
+        const store = getStore();
+        const batch = store.batches.find((item) => item.id === batchId) ?? null;
+        const packets = store.packets
+          .filter((packet) => packet.batchId === batchId)
+          .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+        setSnapshot({ batch, packets });
+      })
       .catch(() => void 0)
       .finally(() => {
         if (active) setReady(true);
@@ -30,14 +53,9 @@ export default function PrintBatchPage() {
     return () => {
       active = false;
     };
-  }, []);
-  const batch = useMemo(() => store.batches.find((item) => item.id === batchId), [store, batchId]);
-  const packets = useMemo(
-    () => store.packets
-      .filter((packet) => packet.batchId === batchId)
-      .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
-    [store, batchId],
-  );
+  }, [batchId]);
+  const batch = snapshot?.batch ?? null;
+  const packets = snapshot?.packets ?? [];
   const printYear = getPacketPacketYear(batch, packets);
   const printTitle = `Caskinette Ford - Registration Packet ${printYear}`;
 
